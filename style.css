@@ -52,7 +52,8 @@ body {
 #topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   padding: 12px 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -60,9 +61,9 @@ body {
   top: 0;
   z-index: 20;
 }
-.brand { display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .brand-emoji { font-size: 24px; }
-#topbar h1 { font-size: 18px; margin: 0; }
+#topbar h1 { font-size: 18px; margin: 0; white-space: nowrap; }
 .dday-badge {
   background: var(--accent-soft);
   color: var(--accent-dark);
@@ -71,6 +72,7 @@ body {
   padding: 5px 12px;
   border-radius: 999px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .sync-badge {
   background: #e1f0e6;
@@ -80,9 +82,10 @@ body {
   padding: 5px 12px;
   border-radius: 999px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 [data-theme="dark"] .sync-badge { background: #1d3324; color: #7fd39a; }
-.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
 
 .fb-banner {
   background: #fff3cd;
@@ -148,7 +151,7 @@ body {
 
 /* Main */
 #main { flex: 1; padding: 22px 28px 60px; overflow-y: auto; min-width: 0; }
-.empty-state { display: flex; align-items: center; justify-content: center; height: 60vh; color: var(--text-dim); font-size: 15px; }
+.empty-state:not([hidden]) { display: flex; align-items: center; justify-content: center; height: 60vh; color: var(--text-dim); font-size: 15px; }
 
 .trip-header {
   background: var(--surface);
@@ -339,4 +342,50 @@ table.budget-table tr.total-row td { font-weight: 800; background: var(--surface
   #layout { flex-direction: column; }
   #sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
   .field-row { flex-direction: column; }
+}
+
+@media (max-width: 640px) {
+  #topbar { padding: 10px 14px; gap: 8px 10px; }
+  #topbar h1 { font-size: 16px; }
+  .brand-emoji { font-size: 20px; }
+  .dday-badge, .sync-badge { font-size: 11px; padding: 4px 9px; }
+
+  .fb-banner { padding: 8px 14px; font-size: 12px; }
+
+  #sidebar { padding: 12px; }
+  #main { padding: 14px 12px 40px; }
+
+  .trip-header { padding: 14px; gap: 10px; }
+  .trip-header h2 { font-size: 17px; }
+  .trip-header .trip-actions { width: 100%; }
+  .trip-header .trip-actions .btn { flex: 1; }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -12px 16px;
+    padding: 0 12px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { flex-shrink: 0; padding: 10px 12px; font-size: 13px; }
+
+  .itinerary-toolbar { flex-direction: column; align-items: stretch; }
+  .itinerary-toolbar #addItemBtn { width: 100%; }
+
+  .day-card-head { flex-wrap: wrap; padding: 12px 14px; }
+  .day-card-head .day-budget { order: 1; flex-basis: 100%; }
+  .day-card-head .day-actions { order: 2; margin-left: 0; }
+
+  .item-row { flex-wrap: wrap; }
+  .item-controls { flex-direction: row; order: 3; flex-basis: 100%; justify-content: flex-end; }
+  .mini-btn { width: 30px; height: 28px; }
+
+  .budget-summary { gap: 10px; }
+  .budget-card { min-width: 0; flex: 1 1 45%; padding: 14px; }
+
+  table.budget-table th, table.budget-table td { padding: 8px 10px; font-size: 12px; }
+
+  .modal-form { padding: 18px 16px; }
 }

@@ -92,6 +92,7 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
           firestoreReady = true;
           hideFbBanner();
           setSyncBadge(true);
+          resetSaveIndicator();
           renderAll();
         },
         (err) => {
@@ -135,15 +136,24 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     });
   }
 
+  const SHARE_MSG = "모든 변경사항은 실시간으로 모든 방문자와 공유됩니다.";
   let saveFlashTimer = null;
+  let flashing = false;
   function flashSaved() {
     const el = document.getElementById("saveIndicator");
     if (!el) return;
+    flashing = true;
     el.textContent = "동기화됨 ✓ (" + new Date().toLocaleTimeString("ko-KR") + ")";
     clearTimeout(saveFlashTimer);
     saveFlashTimer = setTimeout(() => {
-      el.textContent = "모든 변경사항은 실시간으로 모든 방문자와 공유됩니다.";
+      flashing = false;
+      el.textContent = SHARE_MSG;
     }, 2500);
+  }
+  function resetSaveIndicator() {
+    if (flashing) return;
+    const el = document.getElementById("saveIndicator");
+    if (el) el.textContent = SHARE_MSG;
   }
 
   function showFbBanner(msg, isError) {
