@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>일본 여행 플래너</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⛩️</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-emoji">⛩️</span>
+      <h1>일본 여행 플래너</h1>
+    </div>
+    <div id="ddayBadge" class="dday-badge" hidden></div>
+    <div class="topbar-actions">
+      <button id="darkToggleBtn" class="icon-btn" title="다크모드 전환">🌙</button>
+    </div>
+  </header>
+
+  <div id="layout">
+
+    <aside id="sidebar">
+      <div class="sidebar-head">
+        <h2>내 여행</h2>
+        <button id="newTripBtn" class="btn btn-primary btn-sm">+ 새 여행</button>
+      </div>
+      <ul id="tripList" class="trip-list"></ul>
+
+      <div class="sidebar-footer">
+        <button id="exportBtn" class="btn btn-ghost btn-sm">⬇ 내보내기(JSON)</button>
+        <label class="btn btn-ghost btn-sm file-label">
+          ⬆ 불러오기(JSON)
+          <input type="file" id="importInput" accept="application/json" hidden>
+        </label>
+        <button id="printBtn" class="btn btn-ghost btn-sm">🖨 인쇄 / PDF저장</button>
+        <p class="save-indicator" id="saveIndicator">모든 변경사항은 이 브라우저에 자동 저장됩니다.</p>
+      </div>
+    </aside>
+
+    <main id="main">
+      <div id="emptyState" class="empty-state">
+        <p>😊 왼쪽에서 "+ 새 여행"을 눌러 일본 여행 일정을 시작해보세요!</p>
+      </div>
+
+      <div id="tripView" hidden>
+        <section id="tripHeader" class="trip-header"></section>
+
+        <nav id="tabs" class="tabs">
+          <button class="tab-btn active" data-tab="itinerary">🗓 일정</button>
+          <button class="tab-btn" data-tab="budget">💰 예산</button>
+          <button class="tab-btn" data-tab="packing">🎒 준비물</button>
+          <button class="tab-btn" data-tab="todo">✅ 할 일</button>
+          <button class="tab-btn" data-tab="places">📍 장소 모아보기</button>
+        </nav>
+
+        <section id="tabContent" class="tab-content"></section>
+      </div>
+    </main>
+  </div>
+
+  <footer id="printOnly" class="print-only"></footer>
+</div>
+
+<!-- 여행 생성/수정 모달 -->
+<dialog id="tripModal" class="modal">
+  <form method="dialog" id="tripForm" class="modal-form">
+    <h3 id="tripModalTitle">새 여행 만들기</h3>
+    <label>여행 이름
+      <input type="text" id="tripName" required placeholder="예: 오사카 벚꽃 여행">
+    </label>
+    <div class="field-row">
+      <label>출발일
+        <input type="date" id="tripStart" required>
+      </label>
+      <label>도착일(귀국일)
+        <input type="date" id="tripEnd" required>
+      </label>
+    </div>
+    <label>같이 가는 친구들 (쉼표로 구분)
+      <input type="text" id="tripMembers" placeholder="예: 나, 철수, 영희">
+    </label>
+    <label>환율 (엔화 1엔당 원화)
+      <input type="number" id="tripRate" step="0.01" min="0" value="9.5">
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="tripCancelBtn">취소</button>
+      <button type="submit" class="btn btn-primary" id="tripSaveBtn">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 일정 항목 추가/수정 모달 -->
+<dialog id="itemModal" class="modal">
+  <form method="dialog" id="itemForm" class="modal-form">
+    <h3 id="itemModalTitle">일정 추가</h3>
+    <div class="field-row">
+      <label>날짜
+        <select id="itemDate" required></select>
+      </label>
+      <label>시간
+        <input type="time" id="itemTime">
+      </label>
+    </div>
+    <label>제목
+      <input type="text" id="itemTitle" required placeholder="예: 후시미이나리 신사 방문">
+    </label>
+    <div class="field-row">
+      <label>카테고리
+        <select id="itemCategory">
+          <option value="transport">🚃 교통</option>
+          <option value="food">🍜 식사</option>
+          <option value="sight" selected>⛩️ 관광</option>
+          <option value="stay">🏨 숙소</option>
+          <option value="shopping">🛍 쇼핑</option>
+          <option value="etc">📌 기타</option>
+        </select>
+      </label>
+      <label>비용 (¥)
+        <input type="number" id="itemCost" min="0" step="1" placeholder="0">
+      </label>
+    </div>
+    <label>장소 (지도 검색어)
+      <input type="text" id="itemLocation" placeholder="예: 伏見稲荷大社">
+    </label>
+    <label>메모
+      <textarea id="itemMemo" rows="2" placeholder="예: 아침 일찍 가야 사람이 적음"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-danger btn-ghost" id="itemDeleteBtn" hidden>삭제</button>
+      <button type="button" class="btn btn-ghost" id="itemCancelBtn">취소</button>
+      <button type="submit" class="btn btn-primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
