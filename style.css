@@ -72,7 +72,30 @@ body {
   border-radius: 999px;
   white-space: nowrap;
 }
+.sync-badge {
+  background: #e1f0e6;
+  color: #2c7a43;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+[data-theme="dark"] .sync-badge { background: #1d3324; color: #7fd39a; }
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.fb-banner {
+  background: #fff3cd;
+  color: #7a5b00;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-bottom: 1px solid #f0d98c;
+  text-align: center;
+}
+.fb-banner-error { background: #fbe0dd; color: #9a2f24; border-bottom-color: #f0b8b0; }
+[data-theme="dark"] .fb-banner { background: #3a2f10; color: #e8c96a; border-bottom-color: #5a4a1a; }
+[data-theme="dark"] .fb-banner-error { background: #3a1f1a; color: #e8938a; border-bottom-color: #5a2a22; }
 .icon-btn {
   border: 1px solid var(--border);
   background: var(--surface);

@@ -1,7 +1,11 @@
+import { firebaseConfig } from "./firebase-config.js";
+
+const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "japanTripPlanner.trips.v1";
   const ACTIVE_KEY = "japanTripPlanner.activeTripId";
   const THEME_KEY = "japanTripPlanner.theme";
 
@@ -37,32 +41,125 @@
   let activeTab = "itinerary";
   let itinerarySearch = "";
 
-  function load() {
-    try {
-      trips = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch (e) {
-      trips = [];
-    }
-    activeTripId = localStorage.getItem(ACTIVE_KEY) || (trips[0] && trips[0].id) || null;
-    const theme = localStorage.getItem(THEME_KEY);
-    if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+  let db = null;
+  let firestoreReady = false;
+  let fx = null; // holds {collection, doc, setDoc, deleteDoc, onSnapshot} once the SDK loads
+
+  function isConfigured() {
+    return !!(firebaseConfig && firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("YOUR_API_KEY"));
   }
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+  function normalizeTrip(raw) {
+    return {
+      id: raw.id,
+      name: raw.name || "이름 없는 여행",
+      start: raw.start || "",
+      end: raw.end || "",
+      members: Array.isArray(raw.members) ? raw.members : [],
+      rate: typeof raw.rate === "number" ? raw.rate : 9.5,
+      itemsByDate: raw.itemsByDate || {},
+      packing: Array.isArray(raw.packing) ? raw.packing : [],
+      todos: Array.isArray(raw.todos) ? raw.todos : [],
+    };
+  }
+
+  async function initFirestore() {
+    activeTripId = localStorage.getItem(ACTIVE_KEY) || null;
+    const theme = localStorage.getItem(THEME_KEY);
+    if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+
+    if (!isConfigured()) {
+      showFbBanner("⚠️ Firebase가 아직 설정되지 않았습니다. firebase-config.js에 프로젝트 설정값을 입력하고 다시 배포해주세요.", true);
+      renderAll();
+      return;
+    }
+
+    try {
+      const [{ initializeApp }, firestoreMod] = await Promise.all([
+        import(FIREBASE_APP_URL),
+        import(FIREBASE_FIRESTORE_URL),
+      ]);
+      fx = firestoreMod;
+      const fbApp = initializeApp(firebaseConfig);
+      db = fx.getFirestore(fbApp);
+      fx.onSnapshot(
+        fx.collection(db, "trips"),
+        (snapshot) => {
+          trips = snapshot.docs.map((d) => normalizeTrip(d.data()));
+          if (!trips.find((t) => t.id === activeTripId)) {
+            activeTripId = trips[0] ? trips[0].id : null;
+          }
+          firestoreReady = true;
+          hideFbBanner();
+          setSyncBadge(true);
+          renderAll();
+        },
+        (err) => {
+          console.error(err);
+          firestoreReady = false;
+          setSyncBadge(false);
+          showFbBanner("⚠️ Firebase 연결에 실패했습니다: " + err.message, true);
+        }
+      );
+    } catch (err) {
+      console.error(err);
+      showFbBanner("⚠️ Firebase SDK를 불러오지 못했습니다. 인터넷 연결을 확인해주세요. (" + err.message + ")", true);
+      renderAll();
+    }
+  }
+
+  function ensureReady() {
+    if (!firestoreReady) {
+      alert("아직 Firebase에 연결되지 않았습니다. firebase-config.js 설정을 확인해주세요.");
+      return false;
+    }
+    return true;
+  }
+
+  function persistTrip(trip) {
     if (activeTripId) localStorage.setItem(ACTIVE_KEY, activeTripId);
-    flashSaved();
+    if (!ensureReady()) return;
+    fx.setDoc(fx.doc(db, "trips", trip.id), trip)
+      .then(flashSaved)
+      .catch((err) => {
+        console.error(err);
+        alert("저장에 실패했습니다: " + err.message);
+      });
+  }
+
+  function deleteTripRemote(tripId) {
+    if (!ensureReady()) return;
+    fx.deleteDoc(fx.doc(db, "trips", tripId)).catch((err) => {
+      console.error(err);
+      alert("삭제에 실패했습니다: " + err.message);
+    });
   }
 
   let saveFlashTimer = null;
   function flashSaved() {
     const el = document.getElementById("saveIndicator");
     if (!el) return;
-    el.textContent = "저장됨 ✓ (" + new Date().toLocaleTimeString("ko-KR") + ")";
+    el.textContent = "동기화됨 ✓ (" + new Date().toLocaleTimeString("ko-KR") + ")";
     clearTimeout(saveFlashTimer);
     saveFlashTimer = setTimeout(() => {
-      el.textContent = "모든 변경사항은 이 브라우저에 자동 저장됩니다.";
+      el.textContent = "모든 변경사항은 실시간으로 모든 방문자와 공유됩니다.";
     }, 2500);
+  }
+
+  function showFbBanner(msg, isError) {
+    const el = document.getElementById("fbStatusBanner");
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    el.classList.toggle("fb-banner-error", !!isError);
+  }
+  function hideFbBanner() {
+    const el = document.getElementById("fbStatusBanner");
+    if (el) el.hidden = true;
+  }
+  function setSyncBadge(on) {
+    const el = document.getElementById("syncBadge");
+    if (el) el.hidden = !on;
   }
 
   function getTrip(id) {
@@ -180,11 +277,8 @@
         renderAll();
       });
       li.querySelector(".trip-del").addEventListener("click", () => {
-        if (!confirm(`"${t.name}" 여행을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-        trips = trips.filter((x) => x.id !== t.id);
-        if (activeTripId === t.id) activeTripId = trips[0] ? trips[0].id : null;
-        save();
-        renderAll();
+        if (!confirm(`"${t.name}" 여행을 삭제할까요? 모든 방문자에게서 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+        deleteTripRemote(t.id);
       });
       list.appendChild(li);
     });
@@ -304,7 +398,7 @@
           if (!b.time) return -1;
           return a.time.localeCompare(b.time);
         });
-        save();
+        persistTrip(trip);
         renderDayCards(trip, days);
       });
       wrap.appendChild(card);
@@ -317,7 +411,7 @@
     const j = i + dir;
     if (i < 0 || j < 0 || j >= arr.length) return;
     [arr[i], arr[j]] = [arr[j], arr[i]];
-    save();
+    persistTrip(trip);
     renderTabContent(trip);
   }
 
@@ -368,7 +462,7 @@
     el.querySelector("#rateInput").addEventListener("change", (e) => {
       const v = Number(e.target.value);
       trip.rate = v > 0 ? v : trip.rate;
-      save();
+      persistTrip(trip);
       renderTripHeader(trip);
       renderBudget(el, trip);
     });
@@ -397,12 +491,12 @@
       `;
       li.querySelector("input").addEventListener("change", (e) => {
         item.checked = e.target.checked;
-        save();
+        persistTrip(trip);
         renderChecklist(el, trip, key, label);
       });
       li.querySelector(".mini-btn").addEventListener("click", () => {
         trip[key] = trip[key].filter((x) => x.id !== item.id);
-        save();
+        persistTrip(trip);
         renderChecklist(el, trip, key, label);
       });
       ul.appendChild(li);
@@ -413,7 +507,7 @@
       const text = input.value.trim();
       if (!text) return;
       trip[key].push({ id: uid(), text, checked: false });
-      save();
+      persistTrip(trip);
       renderChecklist(el, trip, key, label);
     };
     el.querySelector("#checklistAddBtn").addEventListener("click", addFn);
@@ -462,7 +556,10 @@
     tripModal.showModal();
   }
 
-  document.getElementById("newTripBtn").addEventListener("click", () => openTripModal(null));
+  document.getElementById("newTripBtn").addEventListener("click", () => {
+    if (!ensureReady()) return;
+    openTripModal(null);
+  });
   document.getElementById("tripCancelBtn").addEventListener("click", () => tripModal.close());
 
   document.getElementById("tripForm").addEventListener("submit", (e) => {
@@ -479,17 +576,18 @@
       return;
     }
 
+    let t;
     if (editingTripId) {
-      const t = getTrip(editingTripId);
+      t = getTrip(editingTripId);
       Object.assign(t, { name, start, end, members, rate });
     } else {
-      const t = createTrip({ name, start, end, members, rate });
+      t = createTrip({ name, start, end, members, rate });
       trips.push(t);
       activeTripId = t.id;
     }
-    save();
     tripModal.close();
     renderAll();
+    persistTrip(t);
   });
 
   // ---------- item modal ----------
@@ -533,9 +631,9 @@
     if (!editingItem) return;
     const trip = itemModalTrip;
     trip.itemsByDate[editingItem.date] = (trip.itemsByDate[editingItem.date] || []).filter((x) => x.id !== editingItem.id);
-    save();
     itemModal.close();
     renderTabContent(trip);
+    persistTrip(trip);
   });
 
   document.getElementById("itemForm").addEventListener("submit", (e) => {
@@ -561,9 +659,9 @@
     } else {
       trip.itemsByDate[date].push({ id: uid(), ...data });
     }
-    save();
     itemModal.close();
     renderTabContent(trip);
+    persistTrip(trip);
   });
 
   // ---------- tabs ----------
@@ -594,11 +692,13 @@
   document.getElementById("importInput").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!ensureReady()) { e.target.value = ""; return; }
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
         const incoming = Array.isArray(data.trips) ? data.trips : [data];
+        const added = [];
         incoming.forEach((t) => {
           if (!t || !t.name) return;
           t.id = uid(); // avoid collisions, always import as new trip(s)
@@ -608,12 +708,13 @@
           t.members = t.members || [];
           t.rate = t.rate || 9.5;
           trips.push(t);
+          added.push(t);
         });
-        if (incoming.length) {
-          activeTripId = trips[trips.length - 1].id;
-          save();
+        if (added.length) {
+          activeTripId = added[added.length - 1].id;
           renderAll();
-          alert("불러오기가 완료되었습니다!");
+          added.forEach(persistTrip);
+          alert("불러오기가 완료되었습니다! (모든 방문자와 공유됩니다)");
         }
       } catch (err) {
         alert("파일을 읽을 수 없습니다. 올바른 JSON 파일인지 확인해주세요.");
@@ -647,6 +748,5 @@
   });
 
   // ---------- init ----------
-  load();
-  renderAll();
+  initFirestore();
 })();

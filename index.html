@@ -16,10 +16,13 @@
       <h1>일본 여행 플래너</h1>
     </div>
     <div id="ddayBadge" class="dday-badge" hidden></div>
+    <div id="syncBadge" class="sync-badge" hidden>🌐 실시간 공유 중</div>
     <div class="topbar-actions">
       <button id="darkToggleBtn" class="icon-btn" title="다크모드 전환">🌙</button>
     </div>
   </header>
+
+  <div id="fbStatusBanner" class="fb-banner" hidden></div>
 
   <div id="layout">
 
@@ -37,7 +40,7 @@
           <input type="file" id="importInput" accept="application/json" hidden>
         </label>
         <button id="printBtn" class="btn btn-ghost btn-sm">🖨 인쇄 / PDF저장</button>
-        <p class="save-indicator" id="saveIndicator">모든 변경사항은 이 브라우저에 자동 저장됩니다.</p>
+        <p class="save-indicator" id="saveIndicator">연결 중...</p>
       </div>
     </aside>
 
@@ -137,6 +140,6 @@
   </form>
 </dialog>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
