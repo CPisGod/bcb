@@ -8,4 +8,4 @@
 // 5. 생성된 키 값을 아래 GOOGLE_MAPS_API_KEY에 붙여넣고 커밋 후 push
 //
 // 개인 여행 플래너 수준의 사용량이면 매달 제공되는 무료 크레딧 안에서 충분히 무료로 쓸 수 있습니다.
-export const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE";
+export const GOOGLE_MAPS_API_KEY = "AIzaSyCMXigq80Zy1L-ugFoN8F8MPcbweZb3Qko";
