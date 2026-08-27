@@ -216,6 +216,10 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(query);
   }
 
+  function mapEmbedUrl(query) {
+    return "https://www.google.com/maps?q=" + encodeURIComponent(query) + "&output=embed";
+  }
+
   function escapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -602,8 +606,28 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
 
   // ---------- item modal ----------
   const itemModal = document.getElementById("itemModal");
+  const itemLocationInput = document.getElementById("itemLocation");
+  const itemMapPreview = document.getElementById("itemMapPreview");
+  const itemMapFrame = document.getElementById("itemMapFrame");
   let editingItem = null; // { date, id } or null
   let itemModalTrip = null;
+  let mapPreviewTimer = null;
+
+  function updateItemMapPreview(query) {
+    const q = query.trim();
+    if (!q) {
+      itemMapPreview.hidden = true;
+      itemMapFrame.src = "";
+      return;
+    }
+    itemMapFrame.src = mapEmbedUrl(q);
+    itemMapPreview.hidden = false;
+  }
+
+  itemLocationInput.addEventListener("input", () => {
+    clearTimeout(mapPreviewTimer);
+    mapPreviewTimer = setTimeout(() => updateItemMapPreview(itemLocationInput.value), 500);
+  });
 
   function openItemModal(trip, defaultDate, item) {
     itemModalTrip = trip;
@@ -622,7 +646,8 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     document.getElementById("itemTitle").value = item ? item.title : "";
     document.getElementById("itemCategory").value = item ? item.category : "sight";
     document.getElementById("itemCost").value = item ? item.cost || "" : "";
-    document.getElementById("itemLocation").value = item ? item.location || "" : "";
+    itemLocationInput.value = item ? item.location || "" : "";
+    updateItemMapPreview(itemLocationInput.value);
     document.getElementById("itemMemo").value = item ? item.memo || "" : "";
     document.getElementById("itemDeleteBtn").hidden = !item;
     itemModal.showModal();
@@ -636,6 +661,11 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
   }
 
   document.getElementById("itemCancelBtn").addEventListener("click", () => itemModal.close());
+
+  itemModal.addEventListener("close", () => {
+    clearTimeout(mapPreviewTimer);
+    itemMapFrame.src = "";
+  });
 
   document.getElementById("itemDeleteBtn").addEventListener("click", () => {
     if (!editingItem) return;
