@@ -330,6 +330,7 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     if (activeTab === "packing") return renderChecklist(el, trip, "packing", "준비물");
     if (activeTab === "todo") return renderChecklist(el, trip, "todos", "할 일");
     if (activeTab === "places") return renderPlaces(el, trip);
+    if (activeTab === "map") return renderMapView(el, trip);
   }
 
   // ---------- itinerary ----------
@@ -549,6 +550,38 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
           ${g.items.map((it) => {
             const cat = CATEGORIES[it.category] || CATEGORIES.etc;
             return `<a class="place-chip" href="${mapUrl(it.location)}" target="_blank" rel="noopener">${cat.emoji} ${escapeHtml(it.location)}</a>`;
+          }).join("")}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // ---------- map view ----------
+  function renderMapView(el, trip) {
+    const days = trip.start && trip.end ? dateRange(trip.start, trip.end) : [];
+    const groups = days.map((date, idx) => {
+      const items = (trip.itemsByDate[date] || []).filter((i) => i.location);
+      return { date, idx, items };
+    }).filter((g) => g.items.length);
+
+    if (!groups.length) {
+      el.innerHTML = `<div class="empty-day">장소가 입력된 일정이 아직 없어요. 일정 항목에 장소를 추가해보세요.</div>`;
+      return;
+    }
+    el.innerHTML = groups.map((g) => `
+      <div class="place-group">
+        <h4>Day ${g.idx + 1} · ${fmtDate(g.date)}</h4>
+        <div class="place-map-grid">
+          ${g.items.map((it) => {
+            const cat = CATEGORIES[it.category] || CATEGORIES.etc;
+            return `
+              <div class="place-map-card">
+                <a class="place-chip" href="${mapUrl(it.location)}" target="_blank" rel="noopener">${cat.emoji} ${escapeHtml(it.location)}</a>
+                <div class="map-preview">
+                  <iframe src="${mapEmbedUrl(it.location)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+              </div>
+            `;
           }).join("")}
         </div>
       </div>
