@@ -558,9 +558,26 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
   }
 
   // ---------- google maps (JS API, multi-pin) ----------
+  const GEOCODE_CACHE_KEY = "japanTripPlanner.geocodeCache";
   let googleMapsLoadPromise = null;
-  const geocodeCache = new Map();
+  const geocodeCache = loadGeocodeCache();
   let mapViewToken = 0;
+
+  function loadGeocodeCache() {
+    try {
+      return new Map(Object.entries(JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}")));
+    } catch {
+      return new Map();
+    }
+  }
+
+  function saveGeocodeCache() {
+    try {
+      localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(Object.fromEntries(geocodeCache)));
+    } catch {
+      // localStorage 사용 불가(프라이빗 브라우징 등) 시 캐시 저장은 건너뛰고 메모리 캐시만 사용
+    }
+  }
 
   function isMapsConfigured() {
     return !!GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "YOUR_GOOGLE_MAPS_API_KEY_HERE";
@@ -588,8 +605,11 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     if (geocodeCache.has(query)) return Promise.resolve(geocodeCache.get(query));
     return new Promise((resolve) => {
       geocoder.geocode({ address: query, region: "jp" }, (results, status) => {
-        const loc = status === "OK" && results[0] ? results[0].geometry.location : null;
+        const loc = status === "OK" && results[0]
+          ? { lat: results[0].geometry.location.lat(), lng: results[0].geometry.location.lng() }
+          : null;
         geocodeCache.set(query, loc);
+        saveGeocodeCache();
         resolve(loc);
       });
     });
