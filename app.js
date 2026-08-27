@@ -1,4 +1,5 @@
 import { firebaseConfig } from "./firebase-config.js";
+import { GOOGLE_MAPS_API_KEY } from "./maps-config.js";
 
 const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
 const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
@@ -556,36 +557,110 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     `).join("");
   }
 
+  // ---------- google maps (JS API, multi-pin) ----------
+  let googleMapsLoadPromise = null;
+  const geocodeCache = new Map();
+  let mapViewToken = 0;
+
+  function isMapsConfigured() {
+    return !!GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "YOUR_GOOGLE_MAPS_API_KEY_HERE";
+  }
+
+  function loadGoogleMaps() {
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (googleMapsLoadPromise) return googleMapsLoadPromise;
+    googleMapsLoadPromise = new Promise((resolve, reject) => {
+      const callbackName = "__japanTripPlannerMapsInit";
+      window[callbackName] = () => {
+        delete window[callbackName];
+        resolve();
+      };
+      const script = document.createElement("script");
+      script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(GOOGLE_MAPS_API_KEY) + "&callback=" + callbackName;
+      script.async = true;
+      script.onerror = () => reject(new Error("Google Maps 스크립트를 불러오지 못했습니다. API 키를 확인해주세요."));
+      document.head.appendChild(script);
+    });
+    return googleMapsLoadPromise;
+  }
+
+  function geocodeLocation(geocoder, query) {
+    if (geocodeCache.has(query)) return Promise.resolve(geocodeCache.get(query));
+    return new Promise((resolve) => {
+      geocoder.geocode({ address: query, region: "jp" }, (results, status) => {
+        const loc = status === "OK" && results[0] ? results[0].geometry.location : null;
+        geocodeCache.set(query, loc);
+        resolve(loc);
+      });
+    });
+  }
+
   // ---------- map view ----------
   function renderMapView(el, trip) {
     const days = trip.start && trip.end ? dateRange(trip.start, trip.end) : [];
-    const groups = days.map((date, idx) => {
-      const items = (trip.itemsByDate[date] || []).filter((i) => i.location);
-      return { date, idx, items };
-    }).filter((g) => g.items.length);
+    const entries = [];
+    days.forEach((date, idx) => {
+      (trip.itemsByDate[date] || []).forEach((item) => {
+        if (item.location) entries.push({ date, idx, item });
+      });
+    });
 
-    if (!groups.length) {
+    if (!entries.length) {
       el.innerHTML = `<div class="empty-day">장소가 입력된 일정이 아직 없어요. 일정 항목에 장소를 추가해보세요.</div>`;
       return;
     }
-    el.innerHTML = groups.map((g) => `
-      <div class="place-group">
-        <h4>Day ${g.idx + 1} · ${fmtDate(g.date)}</h4>
-        <div class="place-map-grid">
-          ${g.items.map((it) => {
-            const cat = CATEGORIES[it.category] || CATEGORIES.etc;
-            return `
-              <div class="place-map-card">
-                <a class="place-chip" href="${mapUrl(it.location)}" target="_blank" rel="noopener">${cat.emoji} ${escapeHtml(it.location)}</a>
-                <div class="map-preview">
-                  <iframe src="${mapEmbedUrl(it.location)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-                </div>
-              </div>
-            `;
-          }).join("")}
-        </div>
-      </div>
-    `).join("");
+
+    if (!isMapsConfigured()) {
+      el.innerHTML = `<div class="empty-day">🗺️ 지도에 여러 장소를 함께 표시하려면 Google Maps API 키 설정이 필요해요.<br>저장소의 <code>maps-config.js</code> 파일에 안내된 절차대로 키를 발급받아 채워넣고 다시 배포해주세요.</div>`;
+      return;
+    }
+
+    const myToken = ++mapViewToken;
+    el.innerHTML = `
+      <div id="tripMapStatus" class="map-status">지도를 불러오는 중...</div>
+      <div id="tripMapCanvas" class="trip-map-canvas"></div>
+    `;
+    const statusEl = el.querySelector("#tripMapStatus");
+    const canvasEl = el.querySelector("#tripMapCanvas");
+
+    loadGoogleMaps().then(async () => {
+      if (myToken !== mapViewToken) return;
+      const geocoder = new google.maps.Geocoder();
+      const map = new google.maps.Map(canvasEl, {
+        center: { lat: 35.6812, lng: 139.7671 },
+        zoom: 6,
+      });
+      const bounds = new google.maps.LatLngBounds();
+      const failed = [];
+      for (const entry of entries) {
+        const loc = await geocodeLocation(geocoder, entry.item.location);
+        if (myToken !== mapViewToken) return;
+        if (!loc) {
+          failed.push(entry.item.location);
+          continue;
+        }
+        const cat = CATEGORIES[entry.item.category] || CATEGORIES.etc;
+        const marker = new google.maps.Marker({
+          map,
+          position: loc,
+          label: String(entry.idx + 1),
+          title: `Day ${entry.idx + 1} · ${entry.item.location}`,
+        });
+        const info = new google.maps.InfoWindow({
+          content: `<strong>${cat.emoji} ${escapeHtml(entry.item.title)}</strong><br>Day ${entry.idx + 1} · ${escapeHtml(entry.item.location)}`,
+        });
+        marker.addListener("click", () => info.open(map, marker));
+        bounds.extend(loc);
+      }
+      if (myToken !== mapViewToken) return;
+      if (!bounds.isEmpty()) map.fitBounds(bounds);
+      statusEl.textContent = failed.length
+        ? `⚠️ 다음 장소는 지도에서 찾지 못했어요: ${failed.join(", ")}`
+        : `📍 장소 ${entries.length}곳 표시됨`;
+    }).catch((err) => {
+      if (myToken !== mapViewToken) return;
+      statusEl.textContent = "⚠️ " + err.message;
+    });
   }
 
   // ---------- trip modal ----------
