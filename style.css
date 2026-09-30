@@ -319,6 +319,25 @@ table.budget-table tr.total-row td { font-weight: 800; background: var(--surface
 .map-status { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 .trip-map-canvas { width: 100%; height: 480px; border-radius: 10px; border: 1px solid var(--border); }
 
+/* Notes */
+.notes-input {
+  width: 100%; min-height: 360px; resize: vertical; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; line-height: 1.6;
+}
+.notes-status { font-size: 12px; color: var(--text-dim); margin-top: 6px; min-height: 16px; }
+
+/* Restaurants */
+.resto-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.resto-count { font-size: 12px; color: var(--text-dim); }
+.resto-list { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.resto-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.resto-body { flex: 1; min-width: 0; cursor: pointer; }
+.resto-name { font-weight: 700; font-size: 14px; }
+.resto-row .btn { text-decoration: none; }
+
 /* Modal */
 .modal { border: none; border-radius: 16px; padding: 0; background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.25); width: min(480px, 92vw); }
 .modal::backdrop { background: rgba(20, 16, 10, .45); }

@@ -61,6 +61,8 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
       itemsByDate: raw.itemsByDate || {},
       packing: Array.isArray(raw.packing) ? raw.packing : [],
       todos: Array.isArray(raw.todos) ? raw.todos : [],
+      notes: typeof raw.notes === "string" ? raw.notes : "",
+      restaurants: Array.isArray(raw.restaurants) ? raw.restaurants : [],
     };
   }
 
@@ -237,6 +239,8 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
       itemsByDate: {},
       packing: DEFAULT_PACKING.map((t) => ({ id: uid(), text: t, checked: false })),
       todos: DEFAULT_TODOS.map((t) => ({ id: uid(), text: t, checked: false })),
+      notes: "",
+      restaurants: [],
     };
   }
 
@@ -332,6 +336,8 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     if (activeTab === "todo") return renderChecklist(el, trip, "todos", "할 일");
     if (activeTab === "places") return renderPlaces(el, trip);
     if (activeTab === "map") return renderMapView(el, trip);
+    if (activeTab === "notes") return renderNotes(el, trip);
+    if (activeTab === "restaurants") return renderRestaurants(el, trip);
   }
 
   // ---------- itinerary ----------
@@ -683,6 +689,158 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
     });
   }
 
+  // ---------- notes ----------
+  let notesSaveTimer = null;
+
+  function renderNotes(el, trip) {
+    const existing = el.querySelector("#notesInput");
+    if (existing && document.activeElement === existing) return; // 입력 중에는 원격 갱신으로 덮어쓰지 않음
+    el.innerHTML = `
+      <textarea id="notesInput" class="notes-input" placeholder="자유롭게 메모를 적어보세요. (입력하면 자동 저장되고 모두에게 공유돼요)"></textarea>
+      <div class="notes-status" id="notesStatus"></div>
+    `;
+    const input = el.querySelector("#notesInput");
+    const status = el.querySelector("#notesStatus");
+    input.value = trip.notes;
+    input.addEventListener("input", () => {
+      status.textContent = "입력 중...";
+      clearTimeout(notesSaveTimer);
+      notesSaveTimer = setTimeout(() => {
+        trip.notes = input.value;
+        persistTrip(trip);
+        status.textContent = "저장됨 ✓";
+      }, 800);
+    });
+    input.addEventListener("blur", () => {
+      if (notesSaveTimer) {
+        clearTimeout(notesSaveTimer);
+        notesSaveTimer = null;
+        trip.notes = input.value;
+        persistTrip(trip);
+        status.textContent = "저장됨 ✓";
+      }
+    });
+  }
+
+  // ---------- restaurants ----------
+  function renderRestaurants(el, trip) {
+    const list = trip.restaurants;
+    el.innerHTML = `
+      <div class="resto-toolbar">
+        <button class="btn btn-primary btn-sm" id="addRestaurantBtn">+ 맛집 추가</button>
+        <span class="resto-count">${list.length ? `총 ${list.length}곳` : ""}</span>
+      </div>
+      <div id="restoMapArea"></div>
+      <ul class="resto-list" id="restoList"></ul>
+    `;
+    el.querySelector("#addRestaurantBtn").addEventListener("click", () => openRestaurantModal(trip));
+
+    const ul = el.querySelector("#restoList");
+    if (!list.length) {
+      ul.innerHTML = `<div class="empty-day">아직 등록된 맛집이 없어요. "+ 맛집 추가"로 가고 싶은 곳을 남겨보세요.</div>`;
+      return;
+    }
+    list.forEach((r) => {
+      const li = document.createElement("li");
+      li.className = "resto-row";
+      li.innerHTML = `
+        <div class="resto-body">
+          <div class="resto-name">🍽 ${escapeHtml(r.name)}</div>
+          ${r.memo ? `<div class="item-memo">${escapeHtml(r.memo)}</div>` : ""}
+        </div>
+        <a class="btn btn-ghost btn-sm" href="${mapUrl(r.name)}" target="_blank" rel="noopener">📍 지도</a>
+      `;
+      li.querySelector(".resto-body").addEventListener("click", () => openRestaurantModal(trip, r));
+      ul.appendChild(li);
+    });
+
+    const area = el.querySelector("#restoMapArea");
+    if (!isMapsConfigured()) {
+      area.innerHTML = `<div class="empty-day">🗺️ 지도에 표시하려면 <code>maps-config.js</code>에 Google Maps API 키 설정이 필요해요.</div>`;
+      return;
+    }
+    const myToken = ++mapViewToken;
+    area.innerHTML = `
+      <div id="restoMapStatus" class="map-status">지도를 불러오는 중...</div>
+      <div id="restoMapCanvas" class="trip-map-canvas"></div>
+    `;
+    const statusEl = area.querySelector("#restoMapStatus");
+    const canvasEl = area.querySelector("#restoMapCanvas");
+
+    loadGoogleMaps().then(async () => {
+      if (myToken !== mapViewToken) return;
+      const geocoder = new google.maps.Geocoder();
+      const map = new google.maps.Map(canvasEl, { center: { lat: 35.6812, lng: 139.7671 }, zoom: 6 });
+      const bounds = new google.maps.LatLngBounds();
+      const failed = [];
+      for (const r of list) {
+        const loc = await geocodeLocation(geocoder, r.name);
+        if (myToken !== mapViewToken) return;
+        if (!loc) { failed.push(r.name); continue; }
+        const marker = new google.maps.Marker({ map, position: loc, title: r.name });
+        const info = new google.maps.InfoWindow({
+          content: `<strong>🍽 ${escapeHtml(r.name)}</strong>${r.memo ? "<br>" + escapeHtml(r.memo) : ""}`,
+        });
+        marker.addListener("click", () => info.open(map, marker));
+        bounds.extend(loc);
+      }
+      if (myToken !== mapViewToken) return;
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds);
+        google.maps.event.addListenerOnce(map, "idle", () => { if (map.getZoom() > 16) map.setZoom(16); });
+      }
+      statusEl.textContent = failed.length
+        ? `⚠️ 다음 맛집은 지도에서 찾지 못했어요: ${failed.join(", ")}`
+        : `📍 맛집 ${list.length}곳 표시됨`;
+    }).catch((err) => {
+      if (myToken !== mapViewToken) return;
+      statusEl.textContent = "⚠️ " + err.message;
+    });
+  }
+
+  // ---------- restaurant modal ----------
+  const restaurantModal = document.getElementById("restaurantModal");
+  let editingRestaurantId = null;
+  let restaurantModalTrip = null;
+
+  function openRestaurantModal(trip, r) {
+    restaurantModalTrip = trip;
+    editingRestaurantId = r ? r.id : null;
+    document.getElementById("restaurantModalTitle").textContent = r ? "맛집 수정" : "맛집 추가";
+    document.getElementById("restaurantName").value = r ? r.name : "";
+    document.getElementById("restaurantMemo").value = r ? r.memo || "" : "";
+    document.getElementById("restaurantDeleteBtn").hidden = !r;
+    restaurantModal.showModal();
+  }
+
+  document.getElementById("restaurantCancelBtn").addEventListener("click", () => restaurantModal.close());
+
+  document.getElementById("restaurantDeleteBtn").addEventListener("click", () => {
+    const trip = restaurantModalTrip;
+    if (!trip || !editingRestaurantId) return;
+    trip.restaurants = trip.restaurants.filter((x) => x.id !== editingRestaurantId);
+    restaurantModal.close();
+    renderTabContent(trip);
+    persistTrip(trip);
+  });
+
+  document.getElementById("restaurantForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const trip = restaurantModalTrip;
+    const name = document.getElementById("restaurantName").value.trim();
+    const memo = document.getElementById("restaurantMemo").value.trim();
+    if (!trip || !name) return;
+    if (editingRestaurantId) {
+      const r = trip.restaurants.find((x) => x.id === editingRestaurantId);
+      if (r) Object.assign(r, { name, memo });
+    } else {
+      trip.restaurants.push({ id: uid(), name, memo });
+    }
+    restaurantModal.close();
+    renderTabContent(trip);
+    persistTrip(trip);
+  });
+
   // ---------- trip modal ----------
   const tripModal = document.getElementById("tripModal");
   let editingTripId = null;
@@ -873,6 +1031,8 @@ const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.13.1/fireb
           t.itemsByDate = t.itemsByDate || {};
           t.packing = t.packing || [];
           t.todos = t.todos || [];
+          t.notes = typeof t.notes === "string" ? t.notes : "";
+          t.restaurants = t.restaurants || [];
           t.members = t.members || [];
           t.rate = t.rate || 9.5;
           trips.push(t);

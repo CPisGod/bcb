@@ -59,6 +59,8 @@
           <button class="tab-btn" data-tab="todo">✅ 할 일</button>
           <button class="tab-btn" data-tab="places">📍 장소 모아보기</button>
           <button class="tab-btn" data-tab="map">🗺 지도</button>
+          <button class="tab-btn" data-tab="notes">📝 메모</button>
+          <button class="tab-btn" data-tab="restaurants">🍽 맛집</button>
         </nav>
 
         <section id="tabContent" class="tab-content"></section>
@@ -139,6 +141,24 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-danger btn-ghost" id="itemDeleteBtn" hidden>삭제</button>
       <button type="button" class="btn btn-ghost" id="itemCancelBtn">취소</button>
+      <button type="submit" class="btn btn-primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 맛집 추가/수정 모달 -->
+<dialog id="restaurantModal" class="modal">
+  <form method="dialog" id="restaurantForm" class="modal-form">
+    <h3 id="restaurantModalTitle">맛집 추가</h3>
+    <label>맛집 이름 (지도 검색어)
+      <input type="text" id="restaurantName" required placeholder="예: 一蘭 道頓堀店">
+    </label>
+    <label>메모
+      <textarea id="restaurantMemo" rows="3" placeholder="예: 돈코츠 라멘, 웨이팅 김"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-danger btn-ghost" id="restaurantDeleteBtn" hidden>삭제</button>
+      <button type="button" class="btn btn-ghost" id="restaurantCancelBtn">취소</button>
       <button type="submit" class="btn btn-primary">저장</button>
     </div>
   </form>
